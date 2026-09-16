@@ -1,7 +1,9 @@
 import {
   Table, Column, Model, DataType, PrimaryKey, Default,
-  Unique, AllowNull
+  Unique, AllowNull, HasMany
 } from "sequelize-typescript";
+import { ChatMember } from "./ChatMember.js";
+import { Drive } from "./Drive.js";
 
 export enum UserRole {
   SUPER_ADMIN = "SUPER_ADMIN",
@@ -67,4 +69,11 @@ export class User extends Model {
   @Default(false)
   @Column(DataType.BOOLEAN)
   enabled!: boolean;
+
+
+  @HasMany(() => Drive)
+  drives!: Drive[];
+
+  @HasMany(() => ChatMember)
+  chatMemberships!: ChatMember[];
 }
