@@ -1,12 +1,12 @@
 import {
   Table, Column, Model, DataType, PrimaryKey, Default,
-  AllowNull, ForeignKey, BelongsTo, Index
+  AllowNull, ForeignKey, BelongsTo
 } from "sequelize-typescript";
 import { User } from "./User.js";
 import { Chat } from "./Chat.js";
 import { Blob } from "./Blob.js";
 
-@Table({ tableName: "messages", timestamps: false, underscored: true })
+@Table({ tableName: "messages", timestamps: false, underscored: true,   indexes: [{ name: "messages_chat_sent_idx", fields: ["chat_id", "sent_at"] }] })
 export class Message extends Model {
 
   @PrimaryKey
@@ -14,13 +14,11 @@ export class Message extends Model {
   @Column({ type: DataType.UUID, field: "message_id" })
   messageId!: string;
 
-  @Index("messages_chat_sent_idx")
   @ForeignKey(() => Chat)
   @AllowNull(false)
   @Column({ type: DataType.UUID, field: "chat_id" })
   chatId!: string;
 
-  @Index("messages_chat_sent_idx")
   @AllowNull(false)
   @Default(DataType.NOW)
   @Column({ type: DataType.DATE, field: "sent_at" })

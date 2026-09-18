@@ -4,6 +4,8 @@ import { User } from "../models/User.js";
 import { comparePassword, hashPassword } from "../utils/password.js";
 import crypto from 'crypto'
 import { Op } from "sequelize";
+import { signToken } from "../config/jwt.js";
+import { emailService } from "./email.service.js";
 
 export class UserService {
 
@@ -22,8 +24,16 @@ export class UserService {
         const verificationCode = crypto.randomInt(100000, 999999)
         const expireIn = new Date(Date.now() + 15 * 60 * 1000);
 
-        return User.create({...data, passwordHash, verificationCode, expireIn})
+        const user = await User.create({
+            ...data,
+            passwordHash,
+            verificationCode: String(verificationCode),
+            verificationExpiresAt: expireIn
+        });
 
+        await emailService.sendVerificationCode(data.email, String(verificationCode));
+
+        return user;
     }
 
     async verify(email: string, code: string) {
@@ -36,9 +46,9 @@ export class UserService {
         if (!user) throw new Error("User not found")
         
         if (user.verificationCode !== code) throw new Error("Wrong code")
-        if (user.verificationExpiresAt.getTime() > Date.now()) throw new Error("Code expire")
+        if (user.verificationExpiresAt.getTime() < Date.now()) throw new Error("Code expire")
 
-        return user.update({emailVerified: true})
+        return toUserResponseDto(await user.update({emailVerified: true}))
     }
 
     async login(data: LoginDto) {
@@ -55,7 +65,9 @@ export class UserService {
 
         if (!isValid) throw new Error("Invalid credentials");
 
-        return toUserResponseDto(user);
+        const token = signToken({userId: Number(user.userId), nickname: user.nickname, role: user.role})
+
+        return {token, user: toUserResponseDto(user)};
     }
 
     async enableUser(userId: number) {
@@ -75,7 +87,7 @@ export class UserService {
         return await user.update({enable : true})
     }
 
-    async getUserById(userId: number) {
+    async getUserById(userId: string) {
         const user = await User.findByPk(userId)
         if (!user) throw new Error("User not found")
         
@@ -83,16 +95,16 @@ export class UserService {
     }
 
 
-    async filterUser(options: {query: string, sort: string, page: number, limit: number}) {
-        const {query, sort, page, limit} = options
+    async filterUser(options: {search: string, sort: string, page: number, limit: number}) {
+        const {search, sort, page, limit} = options
 
         const where: any = {};
 
-        if (query) {
+        if (search) {
             where[Op.or] = [
-                {firstName: {[Op.iLike]: `%${query}%`}},
-                {lastName: {[Op.iLike]: `%${query}%`}},
-                {nickname: {[Op.iLike]: `%${query}%`}}
+                {firstName: {[Op.iLike]: `%${search}%`}},
+                {lastName: {[Op.iLike]: `%${search}%`}},
+                {nickname: {[Op.iLike]: `%${search}%`}}
             ]
         }
 

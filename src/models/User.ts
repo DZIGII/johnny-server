@@ -4,6 +4,8 @@ import {
 } from "sequelize-typescript";
 import { ChatMember } from "./ChatMember.js";
 import { Drive } from "./Drive.js";
+import { Col } from "sequelize/lib/utils";
+import { BOOLEAN } from "sequelize";
 
 export enum UserRole {
   SUPER_ADMIN = "SUPER_ADMIN",
@@ -70,6 +72,17 @@ export class User extends Model {
   @Column(DataType.BOOLEAN)
   enabled!: boolean;
 
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  verificationCode!: string;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  verificationExpiresAt!: Date;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  emailVerified!: boolean;
 
   @HasMany(() => Drive)
   drives!: Drive[];
