@@ -1,6 +1,7 @@
 import {
   Table, Column, Model, DataType, PrimaryKey, Default,
-  Unique, AllowNull, HasMany
+  Unique, AllowNull, HasMany,
+  HasOne
 } from "sequelize-typescript";
 import { ChatMember } from "./ChatMember.js";
 import { Drive } from "./Drive.js";
@@ -84,8 +85,8 @@ export class User extends Model {
   @Column(DataType.BOOLEAN)
   emailVerified!: boolean;
 
-  @HasMany(() => Drive)
-  drives!: Drive[];
+  @HasOne(() => Drive)
+  drive!: Drive;
 
   @HasMany(() => ChatMember)
   chatMemberships!: ChatMember[];

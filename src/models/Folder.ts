@@ -36,7 +36,7 @@ export class Folder extends Model {
   @BelongsTo(() => Folder, "parentId")
   parent!: Folder | null;
 
-  @HasMany(() => Folder, "parentId")
+  @HasMany(() => Folder, {foreignKey: "parentId", onDelete: "CASCADE"})
   children!: Folder[];
 
   @ForeignKey(() => Drive)
@@ -47,6 +47,6 @@ export class Folder extends Model {
   @BelongsTo(() => Drive)
   drive!: Drive;
 
-  @HasMany(() => File)
+  @HasMany(() => File, {onDelete: "CASCADE"})
   files!: File[];
 }

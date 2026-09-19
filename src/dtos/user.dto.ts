@@ -13,6 +13,13 @@ export interface LoginDto {
     password: string;
 }
 
+export interface UserDto {
+    firstName: string;
+    lastName: string;
+    email: string;
+    nickname: string;
+}
+
 export function toUserResponseDto(user: User) {
     return {
         firstName: user.firstName,
