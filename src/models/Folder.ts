@@ -23,10 +23,10 @@ export class Folder extends Model {
   @Column(DataType.STRING(255))
   name!: string;
 
-  @AllowNull(false)
-  @Default(Visibility.PRIVATE)
-  @Column(DataType.ENUM(...Object.values(Visibility)))
-  visibility!: Visibility;
+  // @AllowNull(false)
+  // @Default(Visibility.PRIVATE)
+  // @Column(DataType.ENUM(...Object.values(Visibility)))
+  // visibility!: Visibility;
 
   @ForeignKey(() => Folder)
   @AllowNull(true)

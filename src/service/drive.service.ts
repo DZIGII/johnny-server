@@ -1,7 +1,7 @@
-import type { DeleteFolderDto, DriveCreateDto, FileCreateDto, FolderCreateDto } from "../dtos/drive.dto.js";
+import type { DeleteFileDto, DeleteFolderDto, DriveCreateDto, FileCreateDto, FolderCreateDto, GetDataDto, VisibilityFileDto } from "../dtos/drive.dto.js";
 import type { UserDto } from "../dtos/user.dto.js";
 import { Drive } from "../models/Drive.js";
-import { Folder } from "../models/Folder.js";
+import { Folder, Visibility } from "../models/Folder.js";
 import { User } from "../models/User.js";
 import { Blob } from "../models/Blob.js";
 import { File } from "../models/File.js";
@@ -120,6 +120,59 @@ export class DriveServie {
             folderId: folder.folderId,
             blobHash: hash,
         });
+    }
+
+    async deleteFile(data: DeleteFileDto) {
+        const user = await User.findOne({ where:{email: data.userEmail}})
+
+        if (!user) throw new Error("User not found")
+        
+        const file = await File.findByPk(data.fileId, {
+            include: [{model: Folder, include: [Drive]}]
+        })
+
+        if (!file) throw new Error("File not found")
+        if (file.folder.drive.userId !== user.userId) throw new Error("Forbbiden")
+
+        await file.destroy()
+    }
+
+    async changeFIleVisibility(data: VisibilityFileDto) {
+        const user = await User.findOne({where: {email: data.userEmail}})
+        if (!user) throw new Error("User not found")
+        
+        const file = await File.findByPk(data.fileId, {
+            include: [{model: Folder, include: [Drive]}]
+        })
+        if (!file) throw new Error("File not found")
+        
+        if (file.folder.drive.userId != user.userId) throw new Error("Forbbiden")
+        
+        await file.update({visibility: data.visibility})
+    }
+
+    async getData(data: GetDataDto) {
+        const user = await User.findOne({where: {email: data.userEmail}})
+        if (!user) throw new Error("User not found")
+        
+        const drive = await Drive.findByPk(data.driveId, {
+            include: [{model: Folder}]
+        })
+        if (!drive) throw new Error("Drive not found")
+        
+        if (user.drive.driveId !== drive.driveId) throw new Error("Forbbiden")
+        
+        const folder = await Folder.findByPk(data.folderId, {
+            include: [
+                { model: Folder, as: "children" },
+                { model: File, include: [Blob] }
+            ]
+        });
+
+        if (!folder) return drive;
+
+        return folder
+        
     }
 
 }
