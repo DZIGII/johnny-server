@@ -47,8 +47,12 @@ export class UserService {
         
         if (user.verificationCode !== code) throw new Error("Wrong code")
         if (user.verificationExpiresAt.getTime() < Date.now()) throw new Error("Code expire")
-
-        return toUserResponseDto(await user.update({emailVerified: true}))
+        
+        return toUserResponseDto(await user.update({
+            emailVerified: true,
+            verificationCode: null,
+            verificationExpiresAt: null
+        }));
     }
 
     async login(data: LoginDto) {
@@ -65,7 +69,12 @@ export class UserService {
 
         if (!isValid) throw new Error("Invalid credentials");
 
-        const token = signToken({userId: Number(user.userId), nickname: user.nickname, role: user.role})
+        const token = signToken({
+            userId: Number(user.userId),
+            nickname: user.nickname,
+            email: user.email,
+            role: user.role
+        })
 
         return {token, user: toUserResponseDto(user)};
     }

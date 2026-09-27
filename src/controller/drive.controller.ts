@@ -87,7 +87,7 @@ export class DriveController {
     async getData(req: Request, res: Response) {
         try {
             const response = await driveService.getData({
-                userEmail: req.body.userEmail,
+                userEmail: req.user!.email,
                 driveId: req.params.driveId as string,
                 folderId: req.query.folderId as string | undefined
             })
@@ -101,7 +101,7 @@ export class DriveController {
     async downloadFile(req: Request, res: Response) {
         try {
             const { filePath, name, mime } = await driveService.getFileStream({
-                userEmail: req.body.userEmail,
+                userEmail: req.user?.email,
                 fileId: req.params.id as string
             })
 
@@ -115,4 +115,20 @@ export class DriveController {
         }
     }
 
+    async getImagesAndVideos(req: Request, res: Response) {
+        try {
+            const response = await driveService.getImagesAndVideos({
+                userEmail: req.user!.email,
+                before: req.query.before as string | undefined,
+                limit: Number(req.query.limit) || 50
+            })
+            res.status(200).json(response)
+        }
+        catch (e: any) {
+            res.status(400).json({ error: e.message })
+        }
+    }
+
 }
+
+export const driveController = new DriveController()

@@ -1,4 +1,4 @@
-import type { DeleteFileDto, DeleteFolderDto, DriveCreateDto, FileCreateDto, FolderCreateDto, GetDataDto, VisibilityFileDto } from "../dtos/drive.dto.js";
+import { toFileResponse, toFolderResponse, type DeleteFileDto, type DeleteFolderDto, type DriveCreateDto, type FileCreateDto, type FolderCreateDto, type GetDataDto, type VisibilityFileDto } from "../dtos/drive.dto.js";
 import type { UserDto } from "../dtos/user.dto.js";
 import { Drive } from "../models/Drive.js";
 import { Folder, Visibility } from "../models/Folder.js";
@@ -9,6 +9,7 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
+import { Op } from "sequelize";
 
 const STORAGE = "./storage/blobs";
 
@@ -160,8 +161,27 @@ export class DriveServie {
         })
         if (!drive) throw new Error("Drive not found")
         
-        if (user.drive.driveId !== drive.driveId) throw new Error("Forbbiden")
+        if (drive.userId !== user.userId) throw new Error("Forbidden")
         
+        if (!data.folderId) {
+            const roots = await Folder.findAll({
+                where: { driveId: drive.driveId, parentId: null }
+            });
+
+            return {
+                folderId: null,
+                name: drive.name,
+                children: roots.map(f => ({
+                    folderId: f.folderId,
+                    name: f.name,
+                    parentId: null,
+                    children: [],
+                    files: []
+                })),
+                files: []
+            };
+        }
+
         const folder = await Folder.findByPk(data.folderId, {
             include: [
                 { model: Folder, as: "children" },
@@ -169,10 +189,61 @@ export class DriveServie {
             ]
         });
 
-        if (!folder) return drive;
+        if (!folder) throw new Error("Folder not found");
 
-        return folder
+        return toFolderResponse(folder)
         
     }
 
+    async getFileStream(data: {userEmail?: string, fileId: string}) {
+        const file = await File.findByPk(data.fileId, {
+            include: [Blob, {model: Folder, include: [Drive]}]
+        })
+
+        if (!file) throw new Error("File not found")
+        if (file.visibility !== Visibility.PUBLIC) {
+            if (!data.userEmail) throw new Error("Forbbiden")
+            const user = await User.findOne({where: {userEmal: data.userEmail}})
+            if (!user || file.folder.drive.userId !== user.userId) throw new Error("Forbbiden")
+        }
+
+        const hash = file.blobHash
+        return {
+            filePath: path.join(STORAGE, hash.slice(0, 2), hash.slice(2, 4), hash),
+            name: file.name,
+            mime: file.blob.mime
+        }
+
+    }
+
+
+    async getImagesAndVideos(data: {userEmail: string, before?: string, limit?: number}) {
+        const user = await User.findOne({where: {email: data.userEmail}})
+        if (!user) throw new Error("User not found")
+
+        const drive = await Drive.findOne({where: {userId: user.userId}})
+        if (!drive) throw new Error("Drive not found")
+        
+        const blobWhere: any = {
+            mime: { [Op.or]: [{ [Op.like]: 'image/%' }, { [Op.like]: 'video/%' }] }
+        }
+
+        if (data.before) {
+            blobWhere.capturedAt = { [Op.lt]: new Date(data.before) }
+        }
+
+        const files = await File.findAll({
+            include: [
+                { model: Blob, where: blobWhere },
+                { model: Folder, where: { driveId: drive.driveId } }
+            ],
+            order: [[{ model: Blob, as: 'blob' }, 'capturedAt', 'DESC']],
+            limit: data.limit ?? 50
+        })
+
+        return files.map(toFileResponse)
+    }
+
 }
+
+export const driveService = new DriveServie()

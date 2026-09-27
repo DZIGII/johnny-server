@@ -10,3 +10,4 @@ export async function comparePassword(password: string, hash: string): Promise<b
     const isValid = await bcrypt.compare(password, hash)
     return isValid
 }
+

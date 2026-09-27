@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { sequelize } from './db.js';
 import userRouter from "./router/user.router.js"
+import driveRouter from "./router/drive.router.js"
 import { EmailService } from './service/email.service.js';
 
 const app = express();
@@ -21,6 +22,7 @@ app.get('/health', async (_req, res) => {
 
 
 app.use("/users", userRouter)
+app.use("/drive", driveRouter)
 
 
 

@@ -2,6 +2,7 @@ import type { NextFunction } from "express";
 import type { Request, Response } from "express";
 import { verifyToken, type JwtPayload } from "../config/jwt.js";
 import type { UserRole } from "../models/User.js";
+import type { Visibility } from "../models/Folder.js";
 
 declare global {
   namespace Express {
@@ -37,4 +38,15 @@ export function requireRole(...roles: UserRole[]) {
     };
 
     return result
+}
+
+
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) {
+    try {
+      req.user = verifyToken(header.slice(7));
+    } catch {}
+  }
+  next();
 }

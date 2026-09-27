@@ -6,6 +6,7 @@ const SECRET = process.env.JWT_SECRET!
 export interface JwtPayload {
     userId: number;
     nickname: string;
+    email: string
     role: UserRole
 }
 
