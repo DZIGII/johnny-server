@@ -10,7 +10,7 @@
     "types": ["node", "multer"],
 
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
+    "emitDecoratorMetadata": false,
     "strictPropertyInitialization": false,
 
     "sourceMap": true,
