@@ -4,9 +4,19 @@ import { sequelize } from './db.js';
 import userRouter from "./router/user.router.js"
 import driveRouter from "./router/drive.router.js"
 import { EmailService } from './service/email.service.js';
+import cors from "cors";
 
 const app = express();
 app.use(express.json());
+
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://rasko.dev",
+    "https://www.rasko.dev"
+  ],
+  credentials: true
+}));
 
 await sequelize.sync();
 
