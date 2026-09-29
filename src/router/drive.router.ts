@@ -19,6 +19,8 @@ router.patch("/files/:id/visibility", authenticate, (req, res) => driveControlle
 
 router.get("/files/:id/download", optionalAuth, (req, res) => driveController.downloadFile(req, res));
 
-router.get("/:driveId", authenticate, (req, res) => driveController.getData(req, res));
+router.get("/me", authenticate, (req, res) => driveController.getMyDrive(req, res));
+
+router.get("/folders/:folderId", authenticate, (req, res) => driveController.getFolder(req, res));
 
 export default router

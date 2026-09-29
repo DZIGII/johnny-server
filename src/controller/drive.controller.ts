@@ -84,13 +84,23 @@ export class DriveController {
         }
     }
 
-    async getData(req: Request, res: Response) {
+    async getMyDrive(req: Request, res: Response) {
         try {
-            const response = await driveService.getData({
-                userEmail: req.user!.email,
-                driveId: req.params.driveId as string,
-                folderId: req.query.folderId as string | undefined
-            })
+            const response = await driveService.getMyDrive(req.user!.email)
+            res.status(200).json(response)
+        }
+        catch (e: any) {
+            const status = e.message === "No drive" ? 404 : 400
+            res.status(status).json({ error: e.message })
+        }
+    }
+
+    async getFolder(req: Request, res: Response) {
+        try {
+            const response = await driveService.getFolder(
+                req.user!.email,
+                req.params.folderId as string
+            )
             res.status(200).json(response)
         }
         catch (e: any) {

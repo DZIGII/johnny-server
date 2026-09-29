@@ -69,7 +69,8 @@ export class DriveServie {
         })
 
         if (!foler) throw new Error("Folder not found")
-        
+        if (user?.enabled == false) throw new Error("User is disabled")
+
         if (foler.drive.userId !== user.userId) throw new Error("Forbbiden")
 
         await foler.destroy()
@@ -80,6 +81,9 @@ export class DriveServie {
 
         if (!user) throw new Error("User not found")
         
+        if (user?.enabled == false) throw new Error("User is disabled")
+
+
         const folder = await Folder.findByPk(data.folderId, {include:[Drive]})
         if (!folder) throw new Error("Folder not found")
         if (folder.drive.userId !== user.userId) throw new Error("Forbbiden")
@@ -127,6 +131,8 @@ export class DriveServie {
         const user = await User.findOne({ where:{email: data.userEmail}})
 
         if (!user) throw new Error("User not found")
+        if (user?.enabled == false) throw new Error("User is disabled")
+
         
         const file = await File.findByPk(data.fileId, {
             include: [{model: Folder, include: [Drive]}]
@@ -142,6 +148,9 @@ export class DriveServie {
         const user = await User.findOne({where: {email: data.userEmail}})
         if (!user) throw new Error("User not found")
         
+        if (user?.enabled == false) throw new Error("User is disabled")
+
+
         const file = await File.findByPk(data.fileId, {
             include: [{model: Folder, include: [Drive]}]
         })
@@ -152,48 +161,42 @@ export class DriveServie {
         await file.update({visibility: data.visibility})
     }
 
-    async getData(data: GetDataDto) {
-        const user = await User.findOne({where: {email: data.userEmail}})
+    async getMyDrive(userEmail: string) {
+        const user = await User.findOne({ where: { email: userEmail } })
         if (!user) throw new Error("User not found")
-        
-        const drive = await Drive.findByPk(data.driveId, {
-            include: [{model: Folder}]
+
+        const drive = await Drive.findOne({ where: { userId: user.userId } })
+        if (!drive) throw new Error("No drive")
+
+        const roots = await Folder.findAll({
+            where: { driveId: drive.driveId, parentId: null }
         })
-        if (!drive) throw new Error("Drive not found")
-        
-        if (drive.userId !== user.userId) throw new Error("Forbidden")
-        
-        if (!data.folderId) {
-            const roots = await Folder.findAll({
-                where: { driveId: drive.driveId, parentId: null }
-            });
 
-            return {
-                folderId: null,
-                name: drive.name,
-                children: roots.map(f => ({
-                    folderId: f.folderId,
-                    name: f.name,
-                    parentId: null,
-                    children: [],
-                    files: []
-                })),
-                files: []
-            };
+        return {
+            driveId: drive.driveId,
+            name: drive.name,
+            folders: roots.map(f => ({ folderId: f.folderId, name: f.name })),
         }
+    }
 
-        const folder = await Folder.findByPk(data.folderId, {
+    async getFolder(userEmail: string, folderId: string) {
+        const user = await User.findOne({ where: { email: userEmail } })
+        if (!user) throw new Error("User not found")
+
+        const folder = await Folder.findByPk(folderId, {
             include: [
+                Drive,
                 { model: Folder, as: "children" },
                 { model: File, include: [Blob] }
             ]
-        });
+        })
 
-        if (!folder) throw new Error("Folder not found");
+        if (!folder) throw new Error("Folder not found")
+        if (folder.drive.userId !== user.userId) throw new Error("Forbidden")
 
         return toFolderResponse(folder)
-        
     }
+
 
     async getFileStream(data: {userEmail?: string, fileId: string}) {
         const file = await File.findByPk(data.fileId, {
@@ -203,7 +206,7 @@ export class DriveServie {
         if (!file) throw new Error("File not found")
         if (file.visibility !== Visibility.PUBLIC) {
             if (!data.userEmail) throw new Error("Forbbiden")
-            const user = await User.findOne({where: {userEmal: data.userEmail}})
+            const user = await User.findOne({where: {email: data.userEmail}})
             if (!user || file.folder.drive.userId !== user.userId) throw new Error("Forbbiden")
         }
 
@@ -220,6 +223,9 @@ export class DriveServie {
     async getImagesAndVideos(data: {userEmail: string, before?: string, limit?: number}) {
         const user = await User.findOne({where: {email: data.userEmail}})
         if (!user) throw new Error("User not found")
+
+        if (user?.enabled == false) throw new Error("User is disabled")
+
 
         const drive = await Drive.findOne({where: {userId: user.userId}})
         if (!drive) throw new Error("Drive not found")
