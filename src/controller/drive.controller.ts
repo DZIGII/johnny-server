@@ -139,6 +139,79 @@ export class DriveController {
         }
     }
 
+        async initUpload(req: Request, res: Response) {
+        try {
+            const response = await driveService.initUpload({
+                userEmail: req.user!.email,
+                folderId: req.body.folderId,
+                name: req.body.name,
+                mime: req.body.mime,
+                size: req.body.size
+            })
+            res.status(201).json(response)
+        }
+        catch (e: any) {
+            res.status(400).json({ error: e.message })
+        }
+    }
+
+    async uploadChunk(req: Request, res: Response) {
+        try {
+            if (!req.file) throw new Error("No chunk uploaded")
+
+            const response = await driveService.uploadChunk({
+                userEmail: req.user!.email,
+                uploadId: req.params.id as string,
+                index: Number(req.params.index),
+                tempPath: req.file.path,
+                size: req.file.size
+            })
+            res.status(200).json(response)
+        }
+        catch (e: any) {
+            res.status(400).json({ error: e.message })
+        }
+    }
+
+    async getUploadStatus(req: Request, res: Response) {
+        try {
+            const response = await driveService.getUploadStatus({
+                userEmail: req.user!.email,
+                uploadId: req.params.id as string
+            })
+            res.status(200).json(response)
+        }
+        catch (e: any) {
+            res.status(400).json({ error: e.message })
+        }
+    }
+
+    async completeUpload(req: Request, res: Response) {
+        try {
+            const response = await driveService.completeUpload({
+                userEmail: req.user!.email,
+                uploadId: req.params.id as string
+            })
+            res.status(201).json(response)
+        }
+        catch (e: any) {
+            res.status(400).json({ error: e.message })
+        }
+    }
+
+    async cancelUpload(req: Request, res: Response) {
+        try {
+            await driveService.cancelUpload({
+                userEmail: req.user!.email,
+                uploadId: req.params.id as string
+            })
+            res.status(204).send()
+        }
+        catch (e: any) {
+            res.status(400).json({ error: e.message })
+        }
+    }
+
 }
 
 export const driveController = new DriveController()

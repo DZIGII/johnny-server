@@ -67,6 +67,27 @@ export interface FolderResponseDto {
     files: FileResponseDto[];
 }
 
+export interface UploadInitDto {
+    userEmail: string
+    folderId: string
+    name: string
+    mime: string
+    size: number
+}
+
+export interface UploadChunkDto {
+    userEmail: string
+    uploadId: string
+    index: number
+    tempPath: string
+    size: number
+}
+
+export interface UploadSessionDto {
+    userEmail: string
+    uploadId: string
+}
+
 export function toFileResponse(file: File): FileResponseDto {
     return {
         fileId: file.fileId,
