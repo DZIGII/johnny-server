@@ -10,8 +10,14 @@ import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { Op } from "sequelize";
+import { createReadStream, createWriteStream } from "fs";
+import { pipeline } from "stream/promises";
+import { UploadSession } from "../models/UploadSession.js";
+import type { UploadChunkDto, UploadInitDto, UploadSessionDto } from "../dtos/drive.dto.js";
 
 const STORAGE = "./storage/blobs";
+const UPLOADS = "./storage/tmp/uploads";
+const CHUNK_SIZE = 20 * 1024 * 1024;
 
 export class DriveServie {
 
@@ -80,51 +86,22 @@ export class DriveServie {
         const user = await User.findOne({where: {email: data.userEmail}})
 
         if (!user) throw new Error("User not found")
-        
         if (user?.enabled == false) throw new Error("User is disabled")
-
 
         const folder = await Folder.findByPk(data.folderId, {include:[Drive]})
         if (!folder) throw new Error("Folder not found")
         if (folder.drive.userId !== user.userId) throw new Error("Forbbiden")
 
-        const buffer = await fs.readFile(data.tempPath)
-        const hash = crypto.createHash("sha256").update(buffer).digest("hex")
+        const hash = await this.hashFile(data.tempPath)
 
-        let blob = await Blob.findByPk(hash)
-
-        if (!blob) {
-            let width = null;
-            let height = null;
-
-            if (data.mime.startsWith("image/")) {
-                const meta = await sharp(buffer).metadata()
-                width = meta.width ?? null;
-                height = meta.height ?? null
-            }
-
-            const dir = path.join(STORAGE, hash.slice(0, 2), hash.slice(2, 4))
-            await fs.mkdir(dir, {recursive: true})
-            await fs.rename(data.tempPath, path.join(dir, hash))
-            
-
-            blob = await Blob.create({
-                hash,
-                size: data.size,
-                mime: data.mime,
-                width,
-                height,
-            });
-        }
-        else {
-            await fs.unlink(data.tempPath)
-        }
-        
-        return await File.create({
+        return await this.saveBlob({
+            tempPath: data.tempPath,
+            hash,
+            size: data.size,
+            mime: data.mime,
             name: data.originalName,
-            folderId: folder.folderId,
-            blobHash: hash,
-        });
+            folderId: folder.folderId
+        })
     }
 
     async deleteFile(data: DeleteFileDto) {
@@ -250,6 +227,165 @@ export class DriveServie {
         return files.map(toFileResponse)
     }
 
+
+        async initUpload(data: UploadInitDto) {
+        const user = await User.findOne({where: {email: data.userEmail}})
+        if (!user) throw new Error("User not found")
+        if (user?.enabled == false) throw new Error("User is disabled")
+
+        const folder = await Folder.findByPk(data.folderId, {include: [Drive]})
+        if (!folder) throw new Error("Folder not found")
+        if (folder.drive.userId !== user.userId) throw new Error("Forbbiden")
+
+        const size = Number(data.size)
+        if (!Number.isInteger(size) || size <= 0) throw new Error("Invalid size")
+        if (!data.name) throw new Error("Name is required")
+
+        const session = await UploadSession.create({
+            userId: user.userId,
+            folderId: folder.folderId,
+            name: data.name,
+            mime: data.mime || "application/octet-stream",
+            size,
+            chunkSize: CHUNK_SIZE,
+            totalChunks: Math.ceil(size / CHUNK_SIZE)
+        })
+
+        await fs.mkdir(UPLOADS, {recursive: true})
+        await fs.writeFile(this.partPath(session.uploadId), "")
+
+        return {
+            uploadId: session.uploadId,
+            chunkSize: session.chunkSize,
+            totalChunks: session.totalChunks
+        }
+    }
+
+    async uploadChunk(data: UploadChunkDto) {
+        try {
+            const session = await this.getSession(data.userEmail, data.uploadId)
+            const index = data.index
+
+            if (index < session.receivedChunks) return { receivedChunks: session.receivedChunks }
+            if (index !== session.receivedChunks) throw new Error("Chunk out of order")
+
+            const isLast = index === session.totalChunks - 1
+            const expected = isLast
+                ? Number(session.size) - index * session.chunkSize
+                : session.chunkSize
+            if (data.size !== expected) throw new Error("Invalid chunk size")
+
+            const part = this.partPath(session.uploadId)
+            await fs.truncate(part, index * session.chunkSize)
+            await pipeline(createReadStream(data.tempPath), createWriteStream(part, {flags: "a"}))
+
+            await session.update({receivedChunks: index + 1})
+            return { receivedChunks: index + 1 }
+        }
+        finally {
+            await fs.rm(data.tempPath, {force: true})
+        }
+    }
+
+    async getUploadStatus(data: UploadSessionDto) {
+        const session = await this.getSession(data.userEmail, data.uploadId)
+        return {
+            uploadId: session.uploadId,
+            receivedChunks: session.receivedChunks,
+            totalChunks: session.totalChunks,
+            chunkSize: session.chunkSize
+        }
+    }
+
+    async completeUpload(data: UploadSessionDto) {
+        const session = await this.getSession(data.userEmail, data.uploadId)
+        if (session.receivedChunks !== session.totalChunks) throw new Error("Upload incomplete")
+
+        const part = this.partPath(session.uploadId)
+        const stat = await fs.stat(part)
+        if (stat.size !== Number(session.size)) throw new Error("Size mismatch")
+
+        const hash = await this.hashFile(part)
+
+        const file = await this.saveBlob({
+            tempPath: part,
+            hash,
+            size: Number(session.size),
+            mime: session.mime,
+            name: session.name,
+            folderId: session.folderId
+        })
+
+        await session.destroy()
+        return file
+    }
+
+    async cancelUpload(data: UploadSessionDto) {
+        const session = await this.getSession(data.userEmail, data.uploadId)
+        await fs.rm(this.partPath(session.uploadId), {force: true})
+        await session.destroy()
+    }
+
+    private async getSession(userEmail: string, uploadId: string) {
+        const user = await User.findOne({where: {email: userEmail}})
+        if (!user) throw new Error("User not found")
+
+        const session = await UploadSession.findByPk(uploadId)
+        if (!session) throw new Error("Upload not found")
+        if (session.userId !== user.userId) throw new Error("Forbbiden")
+
+        return session
+    }
+
+    private partPath(uploadId: string) {
+        return path.join(UPLOADS, `${uploadId}.part`)
+    }
+
+    private async hashFile(filePath: string) {
+        const hash = crypto.createHash("sha256")
+        for await (const chunk of createReadStream(filePath)) {
+            hash.update(chunk)
+        }
+        return hash.digest("hex")
+    }
+
+    private async saveBlob(data: {tempPath: string, hash: string, size: number, mime: string, name: string, folderId: string}) {
+        let blob = await Blob.findByPk(data.hash)
+
+        if (!blob) {
+            let width = null;
+            let height = null;
+
+            if (data.mime.startsWith("image/")) {
+                const meta = await sharp(data.tempPath).metadata()
+                width = meta.width ?? null;
+                height = meta.height ?? null
+            }
+
+            const dir = path.join(STORAGE, data.hash.slice(0, 2), data.hash.slice(2, 4))
+            await fs.mkdir(dir, {recursive: true})
+            await fs.rename(data.tempPath, path.join(dir, data.hash))
+
+            blob = await Blob.create({
+                hash: data.hash,
+                size: data.size,
+                mime: data.mime,
+                width,
+                height,
+            });
+        }
+        else {
+            await fs.unlink(data.tempPath)
+        }
+
+        return await File.create({
+            name: data.name,
+            folderId: data.folderId,
+            blobHash: data.hash,
+        });
+    }
+
 }
+
 
 export const driveService = new DriveServie()

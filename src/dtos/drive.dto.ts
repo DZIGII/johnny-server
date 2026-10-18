@@ -54,6 +54,9 @@ export interface FileResponseDto {
     visibility: string;
     mime: string;
     size: number;
+    width: number | null;
+    height: number | null;
+    capturedAt: Date | null;
 }
 
 export interface FolderResponseDto {
@@ -71,6 +74,9 @@ export function toFileResponse(file: File): FileResponseDto {
         visibility: file.visibility,
         mime: file.blob?.mime ?? "",
         size: Number(file.blob?.size ?? 0),
+        width: file.blob?.width ?? null,
+        height: file.blob?.height ?? null,
+        capturedAt: file.blob?.capturedAt ?? null,
     };
 }
 
@@ -89,3 +95,4 @@ export function toFolderResponse(folder: Folder): FolderResponseDto {
         files: (folder.files ?? []).map(toFileResponse),
     };
 }
+

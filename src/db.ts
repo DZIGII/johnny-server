@@ -11,11 +11,12 @@ import { File } from './models/File.js';
 import { Chat } from './models/Chat.js';
 import { ChatMember } from './models/ChatMember.js';
 import { Message } from './models/Message.js';
+import { UploadSession } from './models/UploadSession.js';
 
 pgvector.registerType(SequelizeCore);
 
 export const sequelize = new Sequelize(process.env.DATABASE_URL!, {
   dialect: 'postgres',
   logging: false,
-  models: [User, Drive, Folder, Blob, File, Chat, ChatMember, Message],
+  models: [User, Drive, Folder, Blob, File, Chat, ChatMember, Message, UploadSession],
 });
